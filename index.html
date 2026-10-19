@@ -237,6 +237,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   #topArea, #bottomArea, #logoFixed, #meldung, #berichtBtnZeile { display: none !important; }
   #druckBereich { display: block; position: relative; font-size: 10.5pt; color: #111; }
   #druckKopfZeile { display: flex; justify-content: space-between; align-items: flex-start; }
+  #druckLinks { flex: 1; padding-right: 6mm; }
   #druckLogo { width: 50mm; height: 50mm; flex: none; }
   #druckLogo svg { width: 100%; height: 100%; }
   #druckCopyright { font-size: 8pt; color: #9aa4b0; }
@@ -244,7 +245,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   #druckKopf { margin-bottom: 7mm; }
   #druckKopf h1 { font-size: 20pt; margin-bottom: 2mm; color: #2f4a68; }
   #druckMeta { font-size: 10pt; color: #444; line-height: 1.55; }
-  #druckSchueler { margin-bottom: 6mm; }
+  #druckSchueler { margin: 5mm 0 6mm 0; }
   #druckSchueler h2 { font-size: 13pt; margin-bottom: 2mm; }
   .druck-kat { font-size: 13pt; font-weight: bold; margin: 5mm 0 3mm 0; padding-bottom: 1mm; border-bottom: 0.5mm solid #c8d4e0; page-break-after: avoid; }
   .druck-kat.k-gruen { color: #15803d; }
@@ -1446,13 +1447,14 @@ const REPORT_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Yu Gothic', 'YuGothic', 'Segoe UI', sans-serif; font-size: 10.5pt; color: #111; background: #fff; max-width: 180mm; margin: 0 auto; padding: 8mm 4mm; }
   #druckKopfZeile { display: flex; justify-content: space-between; align-items: flex-start; }
+  #druckLinks { flex: 1; padding-right: 6mm; }
   #druckLogo { width: 50mm; height: 50mm; flex: none; }
   #druckLogo svg { width: 100%; height: 100%; }
   #druckCopyright { font-size: 8pt; color: #9aa4b0; }
   #druckKopf { margin-top: 2mm; }
   #druckKopf h1 { font-size: 20pt; margin-bottom: 2mm; color: #2f4a68; }
   #druckMeta { font-size: 10pt; color: #444; line-height: 1.55; }
-  #druckSchueler { margin-bottom: 6mm; }
+  #druckSchueler { margin: 5mm 0 6mm 0; }
   #druckSchueler h2 { font-size: 13pt; margin-bottom: 2mm; }
   #druckSchueler ul { margin-left: 6mm; }
   .druck-kat { font-size: 13pt; font-weight: bold; margin: 5mm 0 3mm 0; padding-bottom: 1mm; border-bottom: 0.5mm solid #c8d4e0; page-break-after: avoid; }
@@ -1483,9 +1485,10 @@ document.getElementById('btnBericht').addEventListener('click', ()=>{
   const druck = document.getElementById('druckBereich');
   druck.innerHTML = '';
 
-  // Kopfzeile (erscheint nur auf der ersten Seite): Copyright links, Logo rechts
+  // Kopfzeile (nur erste Seite): links Copyright + Berichtsblock, rechts Logo – beide auf gleicher Hoehe
   const kopfZeile = el('div', {id:'druckKopfZeile'}, druck);
-  const copy = el('div', {id:'druckCopyright'}, kopfZeile);
+  const linksBox = el('div', {id:'druckLinks'}, kopfZeile);
+  const copy = el('div', {id:'druckCopyright'}, linksBox);
   copy.textContent = '\u00A9 LogBuch_V26/27 Dipl.-Ing Rachid Harbi';
   const logoBox = el('div', {id:'druckLogo', 'aria-hidden':'true'}, kopfZeile);
   logoBox.appendChild(document.querySelector('#druckLogoVorlage svg').cloneNode(true));
@@ -1497,11 +1500,11 @@ document.getElementById('btnBericht').addEventListener('click', ()=>{
              '<strong>Ausgedruckt am:</strong> ' + isoZuDeutsch(heuteIso) + '<br>';
   if (ab) meta += '<strong>Einträge ab:</strong> ' + isoZuDeutsch(ab) + '<br>';
   meta += '<strong>Anzahl der Einträge:</strong> ' + letzteTreffer.length;
-  const kopf = el('div', {id:'druckKopf'}, druck);
+  const kopf = el('div', {id:'druckKopf'}, linksBox);
   kopf.innerHTML = '<h1>LogBuch-Bericht</h1><div id="druckMeta">' + meta + '</div>';
 
   // Schüler (nur bei Schülersuche) / jetzige Klasse
-  const schBox = el('div', {id:'druckSchueler'}, druck);
+  const schBox = el('div', {id:'druckSchueler'}, linksBox);
   if (modus === 'schueler'){
     schBox.innerHTML = '<h2>Schüler: ' + suchWert.replace(/</g,'&lt;') +
                        ' &ndash; jetzige Klasse: ' + aktuelleKlasse + '</h2>';
