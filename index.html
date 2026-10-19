@@ -220,12 +220,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 #druckBereich { display: none; }
 #berichtBtnZeile { margin-bottom: 10px; }
 @keyframes glasBlink {
-  0%, 100% { background: rgba(147, 197, 253, 0.30); box-shadow: 0 2px 10px rgba(59, 130, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.50); }
-  50% { background: rgba(147, 197, 253, 0.58); box-shadow: 0 2px 14px rgba(59, 130, 246, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.80); }
+  0%, 100% { background: rgba(147, 197, 253, 0.38); box-shadow: 0 2px 10px rgba(59, 130, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.55); }
+  50% { background: rgba(147, 197, 253, 0.68); box-shadow: 0 2px 14px rgba(59, 130, 246, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.85); }
 }
 #berichtBtnZeile button {
   font-size: 15px; color: #1e3a5f; cursor: pointer;
-  background: rgba(147, 197, 253, 0.35);              /* hellblau, halbtransparent */
+  background: rgba(147, 197, 253, 0.42);              /* hellblau, halbtransparent */
   border: 1px solid rgba(147, 197, 253, 0.65);
   border-radius: 10px;
   backdrop-filter: blur(8px);                          /* Glaseffekt */
@@ -1441,6 +1441,33 @@ function zeigeErgebnisse(json, modus){
 /* ================= Bericht drucken (PDF) ================= */
 const KATEGORIE_REIHENFOLGE = ['Vorfallmelder', 'Inklusion', 'Elterngespräch'];
 
+/* Stile des Berichts fuer den eigenstaendigen Tab (iOS) */
+const REPORT_CSS = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Yu Gothic', 'YuGothic', 'Segoe UI', sans-serif; font-size: 10.5pt; color: #111; background: #fff; max-width: 180mm; margin: 0 auto; padding: 8mm 4mm; }
+  #druckKopfZeile { display: flex; justify-content: space-between; align-items: flex-start; }
+  #druckLogo { width: 50mm; height: 50mm; flex: none; }
+  #druckLogo svg { width: 100%; height: 100%; }
+  #druckCopyright { font-size: 8pt; color: #9aa4b0; }
+  #druckKopf { margin-top: 2mm; }
+  #druckKopf h1 { font-size: 20pt; margin-bottom: 2mm; color: #2f4a68; }
+  #druckMeta { font-size: 10pt; color: #444; line-height: 1.55; }
+  #druckSchueler { margin-bottom: 6mm; }
+  #druckSchueler h2 { font-size: 13pt; margin-bottom: 2mm; }
+  #druckSchueler ul { margin-left: 6mm; }
+  .druck-kat { font-size: 13pt; font-weight: bold; margin: 5mm 0 3mm 0; padding-bottom: 1mm; border-bottom: 0.5mm solid #c8d4e0; page-break-after: avoid; }
+  .druck-kat.k-gruen { color: #15803d; } .druck-kat.k-rot { color: #dc2626; }
+  .druck-kat.k-gelb { color: #a16207; } .druck-kat.k-blau { color: #2563eb; }
+  .druck-eintrag { border: 1px solid #c0c8d2; border-left: 1.5mm solid #999; border-radius: 2mm; padding: 3mm 4mm; margin-bottom: 4mm; page-break-inside: avoid; line-height: 1.45; }
+  .druck-eintrag .d-art { font-weight: bold; }
+  .druck-eintrag.k-gruen { border-left-color: #16a34a; } .druck-eintrag.k-gruen .d-art { color: #15803d; }
+  .druck-eintrag.k-rot { border-left-color: #dc2626; } .druck-eintrag.k-rot .d-art { color: #dc2626; }
+  .druck-eintrag.k-gelb { border-left-color: #eab308; } .druck-eintrag.k-gelb .d-art { color: #a16207; }
+  .druck-eintrag.k-blau { border-left-color: #2563eb; } .druck-eintrag.k-blau .d-art { color: #2563eb; }
+  #iosHinweis { background: #eff6ff; color: #1e3a5f; border: 1px solid #93c5fd; border-radius: 3mm; padding: 3mm 4mm; font-size: 9.5pt; margin-bottom: 5mm; }
+  @page { size: A4; margin: 15mm; }
+`;
+
 document.getElementById('btnBericht').addEventListener('click', ()=>{
   const modus = suchenNachSel.value;
   const suchWert = ddSuchWert ? ddSuchWert.wert()[0] : '';
@@ -1517,7 +1544,24 @@ document.getElementById('btnBericht').addEventListener('click', ()=>{
     letzteTreffer.forEach(eintragKarte);
   }
 
-  setTimeout(()=>window.print(), 150); // Druckdialog oeffnet, Ausgabe als PDF moeglich
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS){
+    // iOS unterstuetzt window.print() nicht: Bericht als eigenstaendige Datei im neuen Tab oeffnen
+    const hinweis = '<div id="iosHinweis"><strong>PDF speichern (iPhone/iPad):</strong> Teilen-Symbol ' +
+      '(&#8593;) &rarr; Optionen / &bdquo;Als PDF sichern&ldquo; (alternativ: Drucken &rarr; Vorschau mit ' +
+      'zwei Fingern aufziehen).</div>';
+    const htmlDokument = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      '<title>LogBuch-Bericht</title><style>' + REPORT_CSS + '</style></head><body>' +
+      hinweis + druck.innerHTML + '</body></html>';
+    const blobUrl = URL.createObjectURL(new Blob([htmlDokument], {type: 'text/html'}));
+    window.open(blobUrl, '_blank');
+    setTimeout(()=>URL.revokeObjectURL(blobUrl), 120000);
+    zeigeMeldung('Bericht im neuen Tab geöffnet → Teilen-Symbol für PDF.');
+  } else {
+    setTimeout(()=>window.print(), 150); // Druckdialog oeffnet, Ausgabe als PDF moeglich
+  }
 });
 </script>
 </body>
