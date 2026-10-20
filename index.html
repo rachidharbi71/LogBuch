@@ -1163,7 +1163,10 @@ function aktualisiereInfofeldHinweis(){
 }
 
 /* --- Speichern --- */
+let speichereLaeuft = false;
 document.getElementById('btnSpeichern').addEventListener('click', async ()=>{
+  if (speichereLaeuft) return; // Doppelklick waehrend des Speicherns wird ignoriert
+  const btnSpeichern = document.getElementById('btnSpeichern');
   if (!istVollstaendig()){ zeigeMeldung('Bitte alle Pflichtangaben vervollständigen.', {fehler:true, dauerhaft:true}); return; }
   if (!infofeldOptional() && infofeld.value.trim().length < 5){ zeigeMeldung('Infofeld muss mindestens 5 Zeichen enthalten.', {fehler:true, dauerhaft:true}); return; }
   const istMerkmal = zustand.sonderTyp === 'Merkmal';
@@ -1178,9 +1181,13 @@ document.getElementById('btnSpeichern').addEventListener('click', async ()=>{
     sonderWert: zustand.art === 'Schülerbesonderheit' ? (istMerkmal ? '' : zustand.sonderWert) : '',
     merkmalSchueler: istMerkmal ? zustand.schuelerAuswahl : [],
     nachricht: infofeld.value,
-    anhaenge: zustand.anhaenge
+    anhaenge: zustand.anhaenge,
+    eintragId: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) // gegen Doppeleintraege
   };
-  zeigeMeldung('Speichere …', {blinkend:false, dauerhaft:true});
+  speichereLaeuft = true;
+  btnSpeichern.disabled = true;
+  btnSpeichern.textContent = 'Speichere …';
+  zeigeMeldung('Bitte warten! … Speichervorgang kann bis zu 30 s dauern', {blinkend:false, dauerhaft:true});
   // Verifizierung: Ist der Eintrag wirklich im Sheet angekommen?
   // (Die POST-Antwort kann durch Googles Redirect unlesbar sein – der Eintrag ist dann trotzdem schon gespeichert.)
   async function eintragVerifizieren(){
@@ -1211,9 +1218,12 @@ document.getElementById('btnSpeichern').addEventListener('click', async ()=>{
   }
   try {
     // 1) POST senden – Antwort ggf. unlesbar, deshalb danach verifizieren
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 60000);
     try {
-      await fetch(SCRIPT_URL, { method:'POST', body: JSON.stringify(daten) });
+      await fetch(SCRIPT_URL, { method:'POST', body: JSON.stringify(daten), signal: ctrl.signal });
     } catch (e1) { /* Antwort unlesbar – Verifizierung entscheidet */ }
+    finally { clearTimeout(timer); }
     if (await warteVerifizieren(3)) {
       zeigeMeldung('Eintrag wurde gespeichert');
     } else {
@@ -1243,7 +1253,15 @@ document.getElementById('btnSpeichern').addEventListener('click', async ()=>{
     zeigeLetzteEintraege();
     formularZuruecksetzen();
   } catch(err){
-    zeigeMeldung('Fehler beim Speichern: ' + err.message, {fehler:true, dauerhaft:true});
+    if (err.name === 'AbortError'){
+      zeigeMeldung('Das Speichern dauert zu lange. Bitte Internet prüfen – vor dem erneuten Versuch prüfen, ob der Eintrag nicht doch schon angekommen ist.', {fehler:true, dauerhaft:true});
+    } else {
+      zeigeMeldung('Fehler beim Speichern: ' + err.message, {fehler:true, dauerhaft:true});
+    }
+  } finally {
+    speichereLaeuft = false;
+    btnSpeichern.disabled = false;
+    btnSpeichern.textContent = 'Eintrag Speichern';
   }
 });
 
@@ -1350,16 +1368,37 @@ document.getElementById('btnSuchen').addEventListener('click', async ()=>{
   const wert = ddSuchWert ? ddSuchWert.wert()[0] : '';
   if (!modus || !wert){ zeigeMeldung('Bitte Suchkriterium und Wert auswählen.', {fehler:true, dauerhaft:true}); return; }
   const ab = document.getElementById('eintragAbInp') ? document.getElementById('eintragAbInp').value : '';
-  zeigeMeldung('Suche läuft …', {blinkend:false, dauerhaft:true});
+  const btnSuchen = document.getElementById('btnSuchen');
+  btnSuchen.disabled = true;
+  btnSuchen.textContent = 'Suche läuft …';
+  zeigeMeldung('Bitte warten! … Suchvorgang kann bis zu 15 s dauern', {blinkend:false, dauerhaft:true});
   try {
     const url = SCRIPT_URL + '?modus=' + encodeURIComponent(modus) + '&wert=' + encodeURIComponent(wert); // Filterung 'ab' clientseitig
-    const res = await fetch(url);
-    const json = JSON.parse(await res.text());
+    const ctrl = new AbortController();                    // Timeout, damit die Meldung nicht endlos haengt
+    const timer = setTimeout(()=>ctrl.abort(), 30000);
+    let res;
+    try { res = await fetch(url, {signal: ctrl.signal}); }
+    finally { clearTimeout(timer); }
+    const antwortText = await res.text();
+    let json;
+    try {
+      json = JSON.parse(antwortText);
+    } catch (parseErr){
+      // Das Script hat eine HTML-Seite statt JSON gesendet (meist: URL passt nicht zur Bereitstellung)
+      throw new Error('Das Script hat keine gültige Antwort gesendet. Bitte prüfen: (1) Stimmt die Web-App-URL in der HTML (SCRIPT_URL) mit der aktuellen Bereitstellung überein? (2) Ist der Zugriff auf "Jeder mit Google-Konto" gesetzt?');
+    }
     if (json.fehler) throw new Error(json.fehler);
     zeigeErgebnisse(json, modus);
     document.getElementById('meldung').className = '';
   } catch(err){
-    zeigeMeldung('Fehler bei der Abfrage: ' + err.message, {fehler:true, dauerhaft:true});
+    if (err.name === 'AbortError'){
+      zeigeMeldung('Die Abfrage dauert zu lange. Bitte Internetverbindung prüfen und erneut suchen.', {fehler:true, dauerhaft:true});
+    } else {
+      zeigeMeldung('Fehler bei der Abfrage: ' + err.message, {fehler:true, dauerhaft:true});
+    }
+  } finally {
+    btnSuchen.disabled = false;
+    btnSuchen.textContent = 'Suchen';
   }
 });
 
